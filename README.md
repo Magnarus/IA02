@@ -1,2 +1,2 @@
 # IA02
-projet trader
+Chicago Stock Exchange
