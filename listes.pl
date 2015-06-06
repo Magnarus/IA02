@@ -3,11 +3,22 @@ afficher_liste([]).
 afficher_liste([X]) :- write(X).
 afficher_liste([X|L]) :- afficher_liste(X), nl, afficher_liste(L).
 
-afficher_trader:-trader(T), print(T),marchandise(M),pile(M,T,Res),print(Res).
-afficher_bourse:-bourse(X) ,print(X).
-afficher_marchandises:-marchandise(X), print(X).
-afficher_reserves(X):-reserve(Y), nth0(X,Y,R), print(R).
-afficher_plateau:-plateau(R),print(R).
+afficher_trader:- write('La position du trader est : '),nl,trader(T), print(T), write('. '),marchandise(M),pile(M,T,Res),print(Res),nl.
+afficher_bourse:-write('La bourse actuelle est : '), nl, bourse(X) ,print(X),nl.
+
+afficher_tableau([T|Q], Num):-write(Num), write('. '),write(T), nl, Num2 is Num+1,afficher_tableau(Q,Num2).
+afficher_tableau([],_).
+
+afficher_marchandise:-write('les piles de marchandises sont : '), nl, marchandise(X), afficher_tableau(X,1).
+
+afficher_reserves:-write('les mains des joueurs sont : '),nl, reserve(R), afficher_tableau(R,1).
+affiche_gagnant('Egalité'):-write('Pas de gagnant, égalité ! '),!.
+affiche_gagnant(Gagnant):-write('Le gagnant est le '), write(Gagnant), write('!'),nl.
+
+affiche_score(J1,J2):-write(J1), write(' - '), write(J2), nl.
+affiche_resultat(J1,J2,Gagnant):- affiche_score(J1,J2), affiche_gagnant(Gagnant).
+
+infos:-afficher_reserves,nl, afficher_bourse,nl, afficher_trader,nl, afficher_marchandise.
 
 pile([],_,[]).
 pile([T|_],1,T):-!.
@@ -18,44 +29,111 @@ concat([T|L1],L2,[T|L3]):-concat(L1,L2,L3).
 
 ajout(X,L,[X|L]).
 
-init_jcj:- assertz(bourse([[ble,7],[riz,6],[cacao,6],[cafe,6],[sucre,6],[mais,6]])),
-		   assertz(reserve([j1,[]],[j2,[]])),
-           assertz(marchandise([[mais,riz,ble,ble],
-						   [ble,mais,sucre,riz],
-						   [cafe,sucre,cacao,riz],
-						   [cafe,mais,sucre,mais],
-						   [cacao,mais,ble,sucre],
-						   [riz,cafe,sucre,ble],
-						   [cafe,ble,sucre,cacao],
-						   [mais,cacao,cacao,ble],
-						   [riz,riz,cafe,cacao]])),
-		   trader_depart(T),
-		   assertz(trader(T)),
-		   assertz((plateau(R) :- bourse(X),marchandise(Y),trader(Z),reserve(U),concat(X,Y,V),ajout(Z,V,W), concat(W,U,R))).
-
-coup_joueur(J):- demander_coup(X,ResStored,ResWasted), jouer_coup(J,X,ResStored,ResWasted).
-
-demander_coup(X,ResStored,NumPileWasted):-  write('La position du trader est : '),nl,
-										afficher_trader, nl,
-										write('De combien voulez-vous déplacer le trader'),nl,
-										read(X),X=<3,X>0,
-										marchandise(M), trader(T), NT is T+X,
-										pile(M,NT,Pile),pile(M,NT-1,PileAdj1), pile(M,NT+1,PileAdj2),
-										top_pile(A,PileAdj1), top_pile(B,PileAdj2),
-										write('quelle est la ressource que vous voulez garder entre : '),
-										print(A), write(' et '), print(B), write('?'),nl,
-										read(Resp),verif_existence(Resp,A,B,NT-1,NT+1,NumPileWasted), ResStored=Resp.
-
-jouer_coup(J,X,ResStored,NumPileWasted):- reserve(R),pile(R,J,ResJoueur). /*TODO : ajout, remette reserve, supprimé jeton pile NumPileWasted*/
-jcj:- init_jcj.
-
-top_pile(X,[X|Q]).
+top_pile(X,[X|_]).
 
 verif_dessus(_,[]):-fail.
 verif_dessus(X,Adj):- top_pile(X,Adj),!.
 
-/*Teste si X correspond à l'un des deux autres arguments passé, et renvoie celui qui ne correspond pas.*/
-verif_existence(X,X,_,_,NB,NB):-!.
-verif_existence(X,_,X,NB,_,NB).
+jcj:- annuler, init_jcj, marchandise(M), length(M,L), boucle(1,1,L).
 
-	  
+/*Lance le plateau de départ. (testé et fonctionnel)*/
+init_jcj:- assertz(bourse([(ble,7),(riz,6),(cacao,6),(cafe,6),(sucre,6),(mais,6)])),
+		   assertz(reserve([[],[]])),
+           assertz(marchandise([[mais,riz,ble,ble],
+								[ble,mais,sucre,riz],
+								[cafe,sucre,cacao,riz],
+								[cafe,mais,sucre,mais],
+								[cacao,mais,ble,sucre],
+								[riz,cafe,sucre,ble],
+								[cafe,ble,sucre,cacao],
+								[mais,cacao,cacao,ble],
+								[riz,riz,cafe,cacao]])),
+		   trader_depart(T),
+		   assertz(trader(T)).
+		   
+/*Vide le plateau*/
+annuler :- retractall(bourse(_)), retractall(reserve(_)), retractall(marchandise(_)), retractall(trader(_)), retractall(plateau(_)).
+
+/*Boucle les tours de jeu jusqu'à qu'ils ne restent que 2 piles*/
+boucle(J,Suiv,Num):- Num > 2, infos, coup_joueur(J), JSuivant is J+Suiv, NouvSuiv is -Suiv, marchandise(M), length(M,L), boucle(JSuivant,NouvSuiv,L),!.
+boucle(_,_,_):- calcule(SommeJ1,SommeJ2,Gagnant), affiche_resultat(SommeJ1,SommeJ2,Gagnant).
+
+/*(Fonctionnel)*/
+coup_joueur(J):- demander_coup(X,ResStored,NumPileWasted,NPR), jouer_coup(J,X,ResStored,NumPileWasted,NPR).
+
+/*(Fonctionnel)*/
+demander_coup(X,ResStored,NumPileWasted,NPR):- mouv_trader(X), choix_ressource(X,ResStored,NumPileWasted,NPR).
+
+/*(fonctionnel)*/
+jouer_coup(J,X,ResStored,NumPileWasted,NPR):-reserve(R), modif_reserve(J,R,ResStored), maj_marchandisebourse(NumPileWasted,NPR), modif_trader(X).
+
+/*Demande un choix valide de déplacement du trader (fonctionnel)*/
+mouv_trader(X):-nl, write('De combien voulez-vous deplacer le trader ?'),nl, write('Rep: '),
+				read(X),X=<3,X>0,!.
+mouv_trader(X):-write('Erreur, vous devez bouger le trader d\'entre une et trois piles, recommencez'), mouv_trader(X).
+
+/*Demande un choix valide de ressource à garder(fonctionnel)*/
+choix_ressource(X,ResStored,NPW,NPR):-  marchandise(M),length(M,Taille), trader(T), NT is T + X, abord(NT,Gauche,Droite,Taille),
+									    pile(M,Gauche,PileAdj1), pile(M,Droite,PileAdj2),
+									    top_pile(A,PileAdj1), top_pile(B,PileAdj2),
+									    write('quelle est la ressource que vous voulez garder entre : '),
+									    print(A), write(' et '), print(B), write('?'),nl,
+									    read(Resp),verif_existence(Resp,A,B,Gauche,Droite,NPW,NPR), ResStored=Resp,!.
+choix_ressource(X,ResStored,NPW,NPR):- write('veuillez choisir une ressource valide, recommencez'),nl, choix_ressource(X,ResStored,NPW,NPR).
+
+/*donne les chiffres des piles à extraire selon la taille du plateau de marchandise*/
+abord(Num,Gauche,Droite,Taille):- Num+1 =< Taille,Gauche is Num-1, Droite is Num+1,!.
+abord(Num,Gauche,1,Taille):- Num == Taille,Gauche is Num-1, !.
+abord(Num,Taille,Droite,Taille):- Res is Num mod Taille, Res == 1, Droite is Res+1,!.
+abord(Num,Gauche,Droite,Taille):- Res is Num mod Taille, Gauche is Res-1, Droite is Res+1 .
+				
+/* Teste si X correspond à l'un des deux autres arguments passé, et renvoie celui qui ne correspond pas.(fonctionnel)*/
+verif_existence(X,X,_,NB2,NB,NB,NB2):-!.
+verif_existence(X,_,X,NB,NB2,NB,NB2).
+
+/*Ajoute NewRes dans la reserve du joueur passé en paramètre(testé et fonctionnel)*/
+modif_reserve(1,[J1,J2],NewRes):- NRes = [[NewRes|J1],J2], retractall(reserve(_)),assertz(reserve(NRes)),!.
+modif_reserve(2,[J1,J2],NewRes):- NRes = [J1,[NewRes|J2]], retractall(reserve(_)),assertz(reserve(NRes)),!.
+
+/*Enlève la tête des piles NumPile et NPR, met la bourse à jour en enlevant 1 à la tete de NumPile(testé et fonctionnel)*/
+maj_marchandisebourse(NumPile,NPR):-marchandise(M),pile(M,NumPile,[T|Q]), modif_bourse(T),
+							remplace(Q,NumPile,M,NM), retire(NM,[],Marchandises),
+							pile(Marchandises,NPR,[_|Q2]), remplace(Q2,NPR,Marchandises,NM2), retire(NM2,[],NouvM),
+							retractall(marchandise(_)),assertz(marchandise(NouvM)).
+							
+/*Diminue de 1 la valeur boursière de la ressource R (testé et fonctionnel)*/							
+modif_bourse(R):- bourse(Bourse), nouv_bourse(Bourse,R,NouvBourse), retractall(bourse(_)), assertz(bourse(NouvBourse)).
+
+nouv_bourse([(Res,Val)|QB],Res,[(Res,NewVal)|Suite]):- NewVal is Val-1, nouv_bourse(QB,Res,Suite),!.
+nouv_bourse([TB|QB],Res,[TB|Suite]):- nouv_bourse(QB,Res,Suite),!.
+nouv_bourse([],_,[]):-!.
+
+/*Retire l'élement X de la liste et retourne la nouvelle liste (testé et fonctionnel)*/
+retire([],_,[]):-!.
+retire([T|Q],T,Q):-!.
+retire([T|Q],X,[T|Res]):-retire(Q,X,Res).
+
+/*Remplace la pile Num par la pile Pile et retourne le nouveau tableau de marchandises (testé et fonctionnel)*/
+remplace(AInserer,Num,Liste,Res):- remplacer(1,AInserer,Num,Liste,Res).
+remplacer(Num,AInserer,Num,[_|Q],[AInserer|Suite]):-Num2 is Num+1, remplacer(Num2,AInserer,Num,Q,Suite),!.
+remplacer(CurrNum,AInserer,Num,[T|Q],[T|Suite]):-Num2 is CurrNum+1, remplacer(Num2,AInserer,Num,Q,Suite),!.
+remplacer(_,_,_,[],[]):-!.
+
+/*change la position du trader (testé et fonctionnel)*/
+modif_trader(NB):-trader(T), marchandise(M), length(M,L), NB+T =< L, NT is NB+T, retractall(trader(_)), assertz(trader(NT)),!.
+modif_trader(NB):-trader(T), marchandise(M), length(M,L), NT is NB+T-L, retractall(trader(_)), assertz(trader(NT)).
+
+/*Calcule le resultat du joueur I (testé et fonctionnel)*/
+calcule(SommeJ1,SommeJ2,Gagnant):-reserve([J1,J2]), calculer(J1,SommeJ1), calculer(J2,SommeJ2), gagnant(SommeJ1,SommeJ2,Gagnant).
+calculer([T|Q],Somme):- bourse(B), recup_val(T,B,Val), calculer(Q,CurrSum), Somme is CurrSum + Val.
+calculer([],0).
+
+/*recup la valeur fonctionnel (testé fonctionnel)*/
+recup_val(Marchandise,[(Marchandise,Valeur)|_],Valeur):-!.
+recup_val(Marchandise,[_|Q],Valeur):-recup_val(Marchandise,Q,Valeur),!.
+recup_val([],[],0).
+
+/*Determine le gagnant (testé et fonctionnel)*/
+gagnant(J1,J2,'Joueur 1'):- J1 > J2,!.
+gagnant(J1,J2,'Joueur 2'):- J2 > J1,!.
+gagnant(J1,J2,'Egalité').
