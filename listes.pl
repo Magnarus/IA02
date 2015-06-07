@@ -12,6 +12,7 @@ afficher_tableau([],_).
 afficher_marchandise:-write('les piles de marchandises sont : '), nl, marchandise(X), afficher_tableau(X,1).
 
 afficher_reserves:-write('les mains des joueurs sont : '),nl, reserve(R), afficher_tableau(R,1).
+
 affiche_gagnant('Egalité'):-write('Pas de gagnant, égalité ! '),!.
 affiche_gagnant(Gagnant):-write('Le gagnant est le '), write(Gagnant), write('!'),nl.
 
@@ -20,6 +21,7 @@ affiche_resultat(J1,J2,Gagnant):- affiche_score(J1,J2), affiche_gagnant(Gagnant)
 
 infos:-afficher_reserves,nl, afficher_bourse,nl, afficher_trader,nl, afficher_marchandise.
 
+/*Retourne le Neme élément d'un tableau*/
 pile([],_,[]).
 pile([T|_],1,T):-!.
 pile([_|Q],N,Res):- N1 is N-1,pile(Q,N1,Res).
@@ -31,9 +33,19 @@ ajout(X,L,[X|L]).
 
 top_pile(X,[X|_]).
 
-verif_dessus(_,[]):-fail.
-verif_dessus(X,Adj):- top_pile(X,Adj),!.
+/*Donne la position de l'élément X dans une liste,
+  Ou retourne l'élément X de la liste à la position N)
+  Renvoie faux lorsqu'impossible.
+*/
+element(X,[X|_],1):-!.
+element(X,[_|L],N):- element(X,L,Temp),N is Temp+1,!.
 
+/*Retourne la différence de position entre AncVal et la nouvelle position de X dans Liste
+  Retourne 0 si X n'est pas dans la liste*/
+diff(X,Liste,AncVal,Diff):- element(X,Liste,Position), Diff is AncVal-Position,!.
+diff(_,_,_,0).
+
+/*Lance le mode joueur contre joueur*/
 jcj:- annuler, init_jcj, marchandise(M), length(M,L), boucle(1,1,L).
 
 /*Lance le plateau de départ. (testé et fonctionnel)*/
@@ -56,16 +68,23 @@ annuler :- retractall(bourse(_)), retractall(reserve(_)), retractall(marchandise
 
 /*Boucle les tours de jeu jusqu'à qu'ils ne restent que 2 piles*/
 boucle(J,Suiv,Num):- Num > 2, infos, coup_joueur(J), JSuivant is J+Suiv, NouvSuiv is -Suiv, marchandise(M), length(M,L), boucle(JSuivant,NouvSuiv,L),!.
-boucle(_,_,_):- calcule(SommeJ1,SommeJ2,Gagnant), affiche_resultat(SommeJ1,SommeJ2,Gagnant).
+boucle(_,_,_):- afficher_bourse, calcule(SommeJ1,SommeJ2,Gagnant), affiche_resultat(SommeJ1,SommeJ2,Gagnant).
 
-/*(Fonctionnel)*/
+/*Demande un coup valide au joueur J, puis l'execute*/
 coup_joueur(J):- demander_coup(X,ResStored,NumPileWasted,NPR), jouer_coup(J,X,ResStored,NumPileWasted,NPR).
 
-/*(Fonctionnel)*/
+/*Demande un coup valide à l'utilisateur*/
 demander_coup(X,ResStored,NumPileWasted,NPR):- mouv_trader(X), choix_ressource(X,ResStored,NumPileWasted,NPR).
 
-/*(fonctionnel)*/
-jouer_coup(J,X,ResStored,NumPileWasted,NPR):-reserve(R), modif_reserve(J,R,ResStored), maj_marchandisebourse(NumPileWasted,NPR), modif_trader(X).
+/*Ajoute la piece gardée à la reserve du joueur J,
+  Met à jour les piles de marchandises et la bourse pour la piece jetée,
+  Met à jour le trader par rapport aux piles potentiellement supprimées,
+  Puis met à jour le trader par rapport aux déplacements voulus par l'utilisateur.
+  */
+jouer_coup(J,X,ResStored,NumPileWasted,NPR):-reserve(R), modif_reserve(J,R,ResStored),
+											 marchandise(M), nouv_pos_trader(M,X,HypPos), pile(M,HypPos,PileTrader),
+											 maj_marchandisebourse(NumPileWasted,NPR),
+											 modifier_trader(HypPos,PileTrader).
 
 /*Demande un choix valide de déplacement du trader (fonctionnel)*/
 mouv_trader(X):-nl, write('De combien voulez-vous deplacer le trader ?'),nl, write('Rep: '),
@@ -97,20 +116,21 @@ modif_reserve(2,[J1,J2],NewRes):- NRes = [J1,[NewRes|J2]], retractall(reserve(_)
 
 /*Enlève la tête des piles NumPile et NPR, met la bourse à jour en enlevant 1 à la tete de NumPile(testé et fonctionnel)*/
 maj_marchandisebourse(NumPile,NPR):-marchandise(M),pile(M,NumPile,[T|Q]), modif_bourse(T),
-							remplace(Q,NumPile,M,NM), retire(NM,[],Marchandises),
-							pile(Marchandises,NPR,[_|Q2]), remplace(Q2,NPR,Marchandises,NM2), retire(NM2,[],NouvM),
-							retractall(marchandise(_)),assertz(marchandise(NouvM)).
+							        remplace(Q,NumPile,M,NM), pile(NM,NPR,[_|Q2]),
+									remplace(Q2,NPR,NM,NM2), retire(NM2,[],NouvM),
+							        retractall(marchandise(_)),assertz(marchandise(NouvM)).
 							
 /*Diminue de 1 la valeur boursière de la ressource R (testé et fonctionnel)*/							
 modif_bourse(R):- bourse(Bourse), nouv_bourse(Bourse,R,NouvBourse), retractall(bourse(_)), assertz(bourse(NouvBourse)).
 
+nouv_bourse([(Res,0)|QB],Res,[(Res,0)|Suite]):- nouv_bourse(QB,Res,Suite),!.
 nouv_bourse([(Res,Val)|QB],Res,[(Res,NewVal)|Suite]):- NewVal is Val-1, nouv_bourse(QB,Res,Suite),!.
 nouv_bourse([TB|QB],Res,[TB|Suite]):- nouv_bourse(QB,Res,Suite),!.
 nouv_bourse([],_,[]):-!.
 
-/*Retire l'élement X de la liste et retourne la nouvelle liste (testé et fonctionnel)*/
+/*Retire les N occurences de X de la liste et retourne la nouvelle liste (testé et fonctionnel)*/
 retire([],_,[]):-!.
-retire([T|Q],T,Q):-!.
+retire([T|Q],T,Res):-retire(Q,T,Res),!.
 retire([T|Q],X,[T|Res]):-retire(Q,X,Res).
 
 /*Remplace la pile Num par la pile Pile et retourne le nouveau tableau de marchandises (testé et fonctionnel)*/
@@ -120,8 +140,12 @@ remplacer(CurrNum,AInserer,Num,[T|Q],[T|Suite]):-Num2 is CurrNum+1, remplacer(Nu
 remplacer(_,_,_,[],[]):-!.
 
 /*change la position du trader (testé et fonctionnel)*/
-modif_trader(NB):-trader(T), marchandise(M), length(M,L), NB+T =< L, NT is NB+T, retractall(trader(_)), assertz(trader(NT)),!.
-modif_trader(NB):-trader(T), marchandise(M), length(M,L), NT is NB+T-L, retractall(trader(_)), assertz(trader(NT)).
+modifier_trader(AncPosition,PileTrader):- marchandise(M), diff(PileTrader,M,AncPosition,Diff),
+												NouvPosition is AncPosition - Diff,
+												retractall(trader(_)),assertz(trader(NouvPosition)).
+
+nouv_pos_trader(M,NB,NT):-trader(T), length(M,L), NB+T =< L, NT is NB+T,!.
+nouv_pos_trader(M,NB,NT):-trader(T), length(M,L), NT is NB+T-L.
 
 /*Calcule le resultat du joueur I (testé et fonctionnel)*/
 calcule(SommeJ1,SommeJ2,Gagnant):-reserve([J1,J2]), calculer(J1,SommeJ1), calculer(J2,SommeJ2), gagnant(SommeJ1,SommeJ2,Gagnant).
@@ -136,4 +160,4 @@ recup_val([],[],0).
 /*Determine le gagnant (testé et fonctionnel)*/
 gagnant(J1,J2,'Joueur 1'):- J1 > J2,!.
 gagnant(J1,J2,'Joueur 2'):- J2 > J1,!.
-gagnant(J1,J2,'Egalité').
+gagnant(_,_,'Egalité').
