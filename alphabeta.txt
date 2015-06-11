@@ -1,0 +1,47 @@
+max_go(Depth):- 0 is Depth mod 2.
+alphabeta_search(Node,Depth,Lookahead,Lower,Upper,Value):-
+	Depth >= Lookahead,!,
+	static_value(Node,Value).
+	
+alphabeta_search(Node,Depth,Lookahead,Lower,Upper,Value):-
+	successors(Node,Successors),
+	find_best2(Successors,Depth,Lookahead,Lower,Upper,Value).
+
+find_best2([],Depth,_,Lower,_,Lower):-
+	max_go(Depth).
+	
+
+find_best2([],Depth,_,_,Upper,Upper):-
+	\+(max_go(Depth)).
+	
+find_best2(_,Depth,_,Lower,Upper,Value):-
+	Lower >= Upper,!,
+	find_best2([],Depth,_,Lower,Upper,Value).
+	
+find_best2([Succ|Succs],Depth,Lookahead,Lower,Upper,Value):-
+	New_Depth is Depth+1,
+	alphabeta_search(Succ,New_Depth,Lookahead,Lower,Upper,This_value),
+	compare2(Depth,This_value,Lower,New_Lower,Upper,New_Upper),
+	find_best2(Succs,Depth,Lookahead,New_Lower,New_Upper,Value).
+
+compare2(Depth,This_value,Lower,This_value,Upper,Upper):-
+	max_go(Depth), This_value > Lower, !.
+	
+compare2(Depth,This_value,Lower,Lower,Upper,This_value):-
+	\+(max_go(Depth)), This_value < Upper, !.
+	
+compare2(_,_,Lower,Lower,Upper,Upper).
+
+static_value([Garde,Jete,Mouv],Value):-
+	
+/*
+Mettre numéro branche lors de la construction des successeurs
+Lors de nouvelle best value, tester si profondeur = 0, si oui, modifier num branche mère
+c'est dans compare2 qu'on fait le test
+donc :  -Réécrire prédicat temp (majbourse, reserve,trader.. )
+		-Faire liste coups possibles
+	   -Faire calcule valeur coup donné
+	   -Rajouter numéro branche + test dans compare2.
+	   -Fin de l'algo, jouer meilleur coup.
+*/
+	
