@@ -168,3 +168,17 @@ coups_possibles(Mvt,Taille,M,[[NewMvt,A,D,G],[NewMvt,B,G,D]|Suite]):- Mvt < 3, N
 								nouv_pos_trader(M,NewMvt,NM), abord(NM,G,D,Taille),
 								pile(M,G,PG), pile(M,D,PD), top_pile(A,PG), top_pile(B,PD),
 								coups_possibles(NewMvt,Taille,M,Suite).
+								
+nbOccur([],_,0):-!.
+nbOccur([X|T],X,Y):- nbOccur(T,X,Z), Y is 1+Z,!.
+nbOccur([_|T],X,Z):-nbOccur(T,X,Z).
+
+maximise(Res,Valeur):-bourse(B),recup_val(Res,B,Valeur).
+minimise(1,NumJette,Valeur):-reserve(R), pile(R,2,ResJ2),
+												marchandise(M),pile(M,NumJette,[T|_]),
+												nbOccur(ResJ2,T,NB),bourse(B),recup_val(T,B,Val),
+												Valeur is Val*NB*(-1).
+minimise(2,NumJette,Valeur):-reserve(R), pile(R,1,ResJ1),
+												marchandise(M),pile(M,NumJette,[T|_]),
+												nbOccur(ResJ1,T,NB),bourse(B),recup_val(T,B,Val),
+												Valeur is Val*NB*(-1).
