@@ -168,12 +168,14 @@ coups_possibles(Mvt,Taille,M,[[NewMvt,A,D,G],[NewMvt,B,G,D]|Suite]):- Mvt < 3, N
 								nouv_pos_trader(M,NewMvt,NM), abord(NM,G,D,Taille),
 								pile(M,G,PG), pile(M,D,PD), top_pile(A,PG), top_pile(B,PD),
 								coups_possibles(NewMvt,Taille,M,Suite).
-								
+/*Calcule le nombre d'occurence de X dans une liste*/					
 nbOccur([],_,0):-!.
 nbOccur([X|T],X,Y):- nbOccur(T,X,Z), Y is 1+Z,!.
 nbOccur([_|T],X,Z):-nbOccur(T,X,Z).
 
+/*calcule la valeur d'un coup en cherchant à obtenir la valeur la plus grande possible*/
 maximise(Res,Valeur):-bourse(B),recup_val(Res,B,Valeur).
+/*Calcule la valeur d'un coup en cherchant à obtenir la valeur la plus petite possible*/
 minimise(1,NumJette,Valeur):-reserve(R), pile(R,2,ResJ2),
 												marchandise(M),pile(M,NumJette,[T|_]),
 												nbOccur(ResJ2,T,NB),bourse(B),recup_val(T,B,Val),
