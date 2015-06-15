@@ -84,7 +84,7 @@ demander_coup(X,ResStored,NumPileWasted,NPR):- mouv_trader(X), choix_ressource(X
 jouer_coup(J,X,ResStored,NumPileWasted,NPR):-reserve(R), modif_reserve(J,R,ResStored),
 											 marchandise(M), nouv_pos_trader(M,X,HypPos), pile(M,HypPos,PileTrader),
 											 maj_marchandisebourse(NumPileWasted,NPR),
-											 modifier_trader(HypPos,PileTrader).
+											 modifier_trader(HypPos,PileTrader),!.
 
 /*Demande un choix valide de déplacement du trader (fonctionnel)*/
 mouv_trader(X):-nl, write('De combien voulez-vous deplacer le trader ?'),nl, write('Rep: '),
@@ -161,3 +161,10 @@ recup_val([],[],0).
 gagnant(J1,J2,'Joueur 1'):- J1 > J2,!.
 gagnant(J1,J2,'Joueur 2'):- J2 > J1,!.
 gagnant(_,_,'Egalité').
+
+/*Détermine les coups possibles à partir de la position courante du trader*/
+coups_possibles(3,_,_,[]):-!.
+coups_possibles(Mvt,Taille,M,[[NewMvt,A,D,G],[NewMvt,B,G,D]|Suite]):- Mvt < 3, NewMvt is Mvt+1,
+								nouv_pos_trader(M,NewMvt,NM), abord(NM,G,D,Taille),
+								pile(M,G,PG), pile(M,D,PD), top_pile(A,PG), top_pile(B,PD),
+								coups_possibles(NewMvt,Taille,M,Suite).

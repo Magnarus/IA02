@@ -1,4 +1,4 @@
-max_go(Depth):- 0 is Depth mod 2.
+﻿max_go(Depth):- 0 is Depth mod 2.
 alphabeta_search(Node,Depth,Lookahead,Lower,Upper,Value):-
 	Depth >= Lookahead,!,
 	static_value(Node,Value).
