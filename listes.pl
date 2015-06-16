@@ -174,13 +174,13 @@ nbOccur([X|T],X,Y):- nbOccur(T,X,Z), Y is 1+Z,!.
 nbOccur([_|T],X,Z):-nbOccur(T,X,Z).
 
 /*calcule la valeur d'un coup en cherchant à obtenir la valeur la plus grande possible*/
-maximise(Res,Valeur):-bourse(B),recup_val(Res,B,Valeur).
+maximise(J,Res,NumJette,Valeur):-bourse(B),recup_val(Res,B,V), val_perdue(J,NumJette,VP), Valeur is V - VP.
+
 /*Calcule la valeur d'un coup en cherchant à obtenir la valeur la plus petite possible*/
-minimise(1,NumJette,Valeur):-reserve(R), pile(R,2,ResJ2),
-												marchandise(M),pile(M,NumJette,[T|_]),
-												nbOccur(ResJ2,T,NB),bourse(B),recup_val(T,B,Val),
-												Valeur is Val*NB*(-1).
-minimise(2,NumJette,Valeur):-reserve(R), pile(R,1,ResJ1),
-												marchandise(M),pile(M,NumJette,[T|_]),
-												nbOccur(ResJ1,T,NB),bourse(B),recup_val(T,B,Val),
-												Valeur is Val*NB*(-1).
+minimise(1,NumJette,Valeur):-val_perdue(2,NumJette,Valeur), Valeur is VPerdue*(-1).
+							
+minimise(2,NumJette,Valeur):-val_perdue(1,NumJette,VPerdue), Valeur is VPerdue*(-1).
+							
+val_perdue(J,NumJette,VPerdue):- reserve(R), pile(R,J,ResJ),
+								 marchandise(M),pile(M,NumJette,[T|_]),
+								 nbOccur(ResJ,T,VPerdue).
