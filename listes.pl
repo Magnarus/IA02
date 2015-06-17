@@ -85,6 +85,11 @@ jouer_coup(J,X,ResStored,NumPileWasted,NPR):-reserve(R), modif_reserve(J,R,ResSt
 											 marchandise(M), nouv_pos_trader(M,X,HypPos), pile(M,HypPos,PileTrader),
 											 maj_marchandisebourse(NumPileWasted,NPR),
 											 modifier_trader(HypPos,PileTrader),!.
+											 
+jouer_coup(J,X,Reserve,March,Trader,B,Res,NumJette,NumGarde,NouvR,NouvM,NouvT,NouvB):- modif_reserve(J,Reserve,Res,NouvR),
+																nouv_pos_trader(March,X,Trader,HypPos), pile(March,HypPos,PileTrader),
+																maj_marchandisebourse(NumJette,NumGarde,March,NouvM,B,NouvB),
+																modifier_trader(NouvM,HypPos,PileTrader,NouvT),!.
 
 /*Demande un choix valide de déplacement du trader (fonctionnel)*/
 mouv_trader(X):-nl, write('De combien voulez-vous deplacer le trader ?'),nl, write('Rep: '),
@@ -101,10 +106,12 @@ choix_ressource(X,ResStored,NPW,NPR):-  marchandise(M),length(M,Taille), trader(
 choix_ressource(X,ResStored,NPW,NPR):- write('veuillez choisir une ressource valide, recommencez'),nl, choix_ressource(X,ResStored,NPW,NPR).
 
 /*donne les chiffres des piles à extraire selon la taille du plateau de marchandise*/
-abord(Num,Gauche,Droite,Taille):- Num+1 =< Taille,Gauche is Num-1, Droite is Num+1,!.
+abord(Num,Taille,Droite,Taille):- Num == 1, Droite is Num+1,!.
+abord(Num,Gauche,Droite,Taille):- Num+1 =< Taille,Gauche is Num-1,Droite is Num+1,!.
 abord(Num,Gauche,1,Taille):- Num == Taille,Gauche is Num-1, !.
 abord(Num,Taille,Droite,Taille):- Res is Num mod Taille, Res == 1, Droite is Res+1,!.
 abord(Num,Gauche,Droite,Taille):- Res is Num mod Taille, Gauche is Res-1, Droite is Res+1 .
+
 				
 /* Teste si X correspond à l'un des deux autres arguments passé, et renvoie celui qui ne correspond pas.(fonctionnel)*/
 verif_existence(X,X,_,NB2,NB,NB,NB2):-!.
@@ -113,15 +120,21 @@ verif_existence(X,_,X,NB,NB2,NB,NB2).
 /*Ajoute NewRes dans la reserve du joueur passé en paramètre(testé et fonctionnel)*/
 modif_reserve(1,[J1,J2],NewRes):- NRes = [[NewRes|J1],J2], retractall(reserve(_)),assertz(reserve(NRes)),!.
 modif_reserve(2,[J1,J2],NewRes):- NRes = [J1,[NewRes|J2]], retractall(reserve(_)),assertz(reserve(NRes)),!.
+modif_reserve(1,[J1,J2],NewRes,[[NewRes|J1],J2]):-!.
+modif_reserve(2,[J1,J2],NewRes,[J1,[NewRes|J2]]):-!.
 
 /*Enlève la tête des piles NumPile et NPR, met la bourse à jour en enlevant 1 à la tete de NumPile(testé et fonctionnel)*/
 maj_marchandisebourse(NumPile,NPR):-marchandise(M),pile(M,NumPile,[T|Q]), modif_bourse(T),
 							        remplace(Q,NumPile,M,NM), pile(NM,NPR,[_|Q2]),
 									remplace(Q2,NPR,NM,NM2), retire(NM2,[],NouvM),
 							        retractall(marchandise(_)),assertz(marchandise(NouvM)).
+maj_marchandisebourse(NumPile,NPR,M,NouvM,B,NouvB):- pile(M,NumPile,[T|Q]), modif_bourse(T,B,NouvB),
+													remplace(Q,NumPile,M,NM), pile(NM,NPR,[_|Q2]),
+													remplace(Q2,NPR,NM,NM2), retire(NM2,[],NouvM).
 							
 /*Diminue de 1 la valeur boursière de la ressource R (testé et fonctionnel)*/							
 modif_bourse(R):- bourse(Bourse), nouv_bourse(Bourse,R,NouvBourse), retractall(bourse(_)), assertz(bourse(NouvBourse)).
+modif_bourse(R,B,NouvBourse):- nouv_bourse(B,R,NouvBourse).
 
 nouv_bourse([(Res,0)|QB],Res,[(Res,0)|Suite]):- nouv_bourse(QB,Res,Suite),!.
 nouv_bourse([(Res,Val)|QB],Res,[(Res,NewVal)|Suite]):- NewVal is Val-1, nouv_bourse(QB,Res,Suite),!.
@@ -143,9 +156,13 @@ remplacer(_,_,_,[],[]):-!.
 modifier_trader(AncPosition,PileTrader):- marchandise(M), diff(PileTrader,M,AncPosition,Diff),
 												NouvPosition is AncPosition - Diff,
 												retractall(trader(_)),assertz(trader(NouvPosition)).
+modifier_trader(M,AncPosition,PileTrader,NouvTrader):- diff(PileTrader,M,AncPosition,Diff),
+													NouvTrader is AncPosition - Diff.
 
 nouv_pos_trader(M,NB,NT):-trader(T), length(M,L), NB+T =< L, NT is NB+T,!.
 nouv_pos_trader(M,NB,NT):-trader(T), length(M,L), NT is NB+T-L.
+nouv_pos_trader(M,NB,T,NT):- length(M,L), NB+T =< L, NT is NB+T,!.
+nouv_pos_trader(M,NB,T,NT):-length(M,L), NT is NB+T-L.
 
 /*Calcule le resultat du joueur I (testé et fonctionnel)*/
 calcule(SommeJ1,SommeJ2,Gagnant):-reserve([J1,J2]), calculer(J1,SommeJ1), calculer(J2,SommeJ2), gagnant(SommeJ1,SommeJ2,Gagnant).
@@ -163,24 +180,66 @@ gagnant(J1,J2,'Joueur 2'):- J2 > J1,!.
 gagnant(_,_,'Egalité').
 
 /*Détermine les coups possibles à partir de la position courante du trader*/
-coups_possibles(3,_,_,[]):-!.
-coups_possibles(Mvt,Taille,M,[[NewMvt,A,D,G],[NewMvt,B,G,D]|Suite]):- Mvt < 3, NewMvt is Mvt+1,
-								nouv_pos_trader(M,NewMvt,NM), abord(NM,G,D,Taille),
+coups_possibles(3,_,_,_,_,[]):-!.
+coups_possibles(Mvt,Taille,M,T,J,[[J,NewMvt,A,D,G],[J,NewMvt,B,G,D]|Suite]):- Mvt < 3, NewMvt is Mvt+1,
+								nouv_pos_trader(M,NewMvt,T,NM), abord(NM,G,D,Taille),
 								pile(M,G,PG), pile(M,D,PD), top_pile(A,PG), top_pile(B,PD),
-								coups_possibles(NewMvt,Taille,M,Suite).
+								coups_possibles(NewMvt,Taille,M,T,J,Suite).
+								
 /*Calcule le nombre d'occurence de X dans une liste*/					
 nbOccur([],_,0):-!.
 nbOccur([X|T],X,Y):- nbOccur(T,X,Z), Y is 1+Z,!.
-nbOccur([_|T],X,Z):-nbOccur(T,X,Z).
+nbOccur([_|T],X,Z):- nbOccur(T,X,Z).
 
 /*calcule la valeur d'un coup en cherchant à obtenir la valeur la plus grande possible*/
-maximise(J,Res,NumJette,Valeur):-bourse(B),recup_val(Res,B,V), val_perdue(J,NumJette,VP), Valeur is V - VP.
+maximise(J,Res,NumJette,M,B,R,Valeur):-recup_val(Res,B,V), val_perdue(J,M,R,NumJette,VP), Valeur is V - VP.
 
 /*Calcule la valeur d'un coup en cherchant à obtenir la valeur la plus petite possible*/
-minimise(1,NumJette,Valeur):-val_perdue(2,NumJette,Valeur), Valeur is VPerdue*(-1).
+minimise(1,M,R,NumJette,Valeur):-val_perdue(2,M,R,NumJette,VPerdue), Valeur is VPerdue.							
+minimise(2,M,R,NumJette,Valeur):-val_perdue(1,M,R,NumJette,VPerdue), Valeur is VPerdue.
 							
-minimise(2,NumJette,Valeur):-val_perdue(1,NumJette,VPerdue), Valeur is VPerdue*(-1).
-							
-val_perdue(J,NumJette,VPerdue):- reserve(R), pile(R,J,ResJ),
-								 marchandise(M),pile(M,NumJette,[T|_]),
-								 nbOccur(ResJ,T,VPerdue).
+val_perdue(J,M,R,NumJette,VPerdue):- pile(R,J,ResJ), pile(M,NumJette,[T|_]),
+								    nbOccur(ResJ,T,VPerdue).
+									
+modulo(Prof):- 0 is Prof mod 2.				
+alphabeta([J,Mvt,Res,NumJette,NumGarde],Prof,Seuil,Min,Max,Reserve,March,Trader,Bourse,Valeur):-
+	Prof == Seuil, modulo(Prof),!,
+	maximise(J,Res,NumJette,March,Bourse,Reserve,Valeur).
+	
+alphabeta([J,Mvt,Res,NumJette,NumGarde],Prof,Seuil,Min,Max,Reserve,March,Trader,Bourse,Valeur):-
+	Prof == Seuil,\+(modulo(Prof)),!,
+	minimise(J,March,Reserve,NumJette,Valeur).
+	
+alphabeta([J,Mvt,Res,NumJette,NumGarde],Prof,Seuil,Min,Max,Reserve,March,Trader,Bourse,Valeur):-
+	jouer_coup(J,Mvt,Reserve,March,Trader,Bourse,Res,NumJette,NumGarde,NouvR,NouvM,NouvT,NouvB),
+	length(NouvM,L),
+	coups_possibles(0,L,NouvM,NouvT,J,Coups),
+	meilleur(Coups,Prof,Seuil,Min,Max,NouvR,NouvM,NouvT,NouvB,Valeur).
+
+meilleur([],Prof,_,Min,_,_,_,_,_,Min):-
+	modulo(Prof).
+
+meilleur([],Prof,_,_,Max,_,_,_,_,Max):-
+	\+(modulo(Prof)).
+
+/*Coupure*/
+meilleur(_,Prof,_,Min,Max,_,_,_,_,Valeur):-
+	Min >= Max,!,
+	meilleur([],Prof,_,Min,Max,_,_,_,_,Valeur).
+meilleur(_,Prof,_,Min,Max,_,_,_,_,Valeur):-
+	Max =< Min,!,
+	meilleur([],Prof,_,Max,Min,_,_,_,_,Valeur).
+	
+meilleur([[J,Mvt,Res,NumJette,NumGarde]|Succs],Prof,Seuil,Min,Max,Reserve,March,Trader,Bourse,Valeur):-
+	NouvProf is Prof+1,
+	alphabeta([J,Mvt,Res,NumJette,NumGarde],NouvProf,Seuil,Min,Max,Reserve,March,Trader,Bourse,CourValeur),
+	compare(Prof,CourValeur,Min,NouvMin,Max,NouvMax),
+	meilleur(Succs,Prof,Seuil,NouvMin,NouvMax,Reserve,March,Trader,Bourse,Valeur),!.
+
+compare(Prof,CourValeur,Min,CourValeur,Max,Max):-
+	modulo(Prof), CourValeur > Min, !.
+	
+compare(Prof,CourValeur,Min,Min,Max,CourValeur):-
+	\+(modulo(Prof)), CourValeur < Max, !.
+	
+compare(_,_,Min,Min,Max,Max).
