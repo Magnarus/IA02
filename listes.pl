@@ -46,10 +46,16 @@ diff(X,Liste,AncVal,Diff):- element(X,Liste,Position), Diff is AncVal-Position,!
 diff(_,_,_,0).
 
 /*Lance le mode joueur contre joueur*/
-jcj:- annuler, init_jcj, marchandise(M), length(M,L), boucle(1,1,L).
+jcj:- init_partie(L), boucle_jcj(1,1,L).
+jcia:- init_partie(L), boucle_jcia(L).
+iacia:- init_partie(L), boucle_iacia(L).
 
+
+
+/*Initialise une partie et retourne la taille du plateau */
+init_partie(L):-annuler, init_plateau, marchandise(M), length(M,L).
 /*Lance le plateau de départ. (testé et fonctionnel)*/
-init_jcj:- assertz(bourse([(ble,7),(riz,6),(cacao,6),(cafe,6),(sucre,6),(mais,6)])),
+init_plateau:- assertz(bourse([(ble,7),(riz,6),(cacao,6),(cafe,6),(sucre,6),(mais,6)])),
 		   assertz(reserve([[],[]])),
            assertz(marchandise([[mais,riz,ble,ble],
 								[ble,mais,sucre,riz],
@@ -67,8 +73,20 @@ init_jcj:- assertz(bourse([(ble,7),(riz,6),(cacao,6),(cafe,6),(sucre,6),(mais,6)
 annuler :- retractall(bourse(_)), retractall(reserve(_)), retractall(marchandise(_)), retractall(trader(_)), retractall(plateau(_)).
 
 /*Boucle les tours de jeu jusqu'à qu'ils ne restent que 2 piles*/
-boucle(J,Suiv,Num):- Num > 2, infos, coup_joueur(J), JSuivant is J+Suiv, NouvSuiv is -Suiv, marchandise(M), length(M,L), boucle(JSuivant,NouvSuiv,L),!.
-boucle(_,_,_):- afficher_bourse, calcule(SommeJ1,SommeJ2,Gagnant), affiche_resultat(SommeJ1,SommeJ2,Gagnant).
+boucle_jcj(J,Suiv,Num):- Num > 2, infos, coup_joueur(J), JSuivant is J+Suiv, NouvSuiv is -Suiv, marchandise(M), length(M,L), boucle_jcj(JSuivant,NouvSuiv,L),!.
+boucle_jcj(_,_,_):- afficher_bourse, calcule(SommeJ1,SommeJ2,Gagnant), affiche_resultat(SommeJ1,SommeJ2,Gagnant).
+
+/*Boucle les tours de jeu jusqu'à qu'ils ne restent que 2 piles*/
+boucle_jcia(Num):- Num > 2, infos, coup_joueur(1), coup_ia([J,Mvt,Res,NumJette,NumGarde]),jouer_coup(J,Mvt,Res,NumJette,NumGarde), marchandise(M), length(M,L), boucle_jcia(L),!.
+boucle_jcia(_):- afficher_bourse, calcule(SommeJ1,SommeJ2,Gagnant), affiche_resultat(SommeJ1,SommeJ2,Gagnant).
+
+boucle_iacia(Num):- Num > 2, infos, coup_ia(1,[J,Mvt,Res,NumJette,NumGarde]),
+					print('COUP DE L\'IA Joueur '),print(J), print(' : '), print('Mvt : '), print(Mvt), nl, nl,
+					jouer_coup(J,Mvt,Res,NumJette,NumGarde),
+					print('entrez quelque chose pour IA suivant'),nl,nl,read(Skip),
+					coup_ia(2,[J2,Mvt2,Res2,NumJette2,NumGarde2]), jouer_coup(J2,Mvt2,Res2,NumJette2,NumGarde2),
+					marchandise(M), length(M,L), boucle_iacia(L),!.
+boucle_iacia(_):- afficher_bourse, calcule(SommeJ1,SommeJ2,Gagnant), affiche_resultat(SommeJ1,SommeJ2,Gagnant).
 
 /*Demande un coup valide au joueur J, puis l'execute*/
 coup_joueur(J):- demander_coup(X,ResStored,NumPileWasted,NPR), jouer_coup(J,X,ResStored,NumPileWasted,NPR).
@@ -102,7 +120,7 @@ choix_ressource(X,ResStored,NPW,NPR):-  marchandise(M),length(M,Taille), trader(
 									    top_pile(A,PileAdj1), top_pile(B,PileAdj2),
 									    write('quelle est la ressource que vous voulez garder entre : '),
 									    print(A), write(' et '), print(B), write('?'),nl,
-									    read(Resp),verif_existence(Resp,A,B,Gauche,Droite,NPW,NPR), ResStored=Resp,!.
+									    read(Resp),nl,verif_existence(Resp,A,B,Gauche,Droite,NPW,NPR), ResStored=Resp,!.
 choix_ressource(X,ResStored,NPW,NPR):- write('veuillez choisir une ressource valide, recommencez'),nl, choix_ressource(X,ResStored,NPW,NPR).
 
 /*donne les chiffres des piles à extraire selon la taille du plateau de marchandise*/
@@ -197,49 +215,59 @@ maximise(J,Res,NumJette,M,B,R,Valeur):-recup_val(Res,B,V), val_perdue(J,M,R,NumJ
 /*Calcule la valeur d'un coup en cherchant à obtenir la valeur la plus petite possible*/
 minimise(1,M,R,NumJette,Valeur):-val_perdue(2,M,R,NumJette,VPerdue), Valeur is VPerdue.							
 minimise(2,M,R,NumJette,Valeur):-val_perdue(1,M,R,NumJette,VPerdue), Valeur is VPerdue.
-							
+/*Calcule la valeur perdue par J en jettant la ressource au dessus de la pile NumJette*/		
 val_perdue(J,M,R,NumJette,VPerdue):- pile(R,J,ResJ), pile(M,NumJette,[T|_]),
 								    nbOccur(ResJ,T,VPerdue).
-									
-modulo(Prof):- 0 is Prof mod 2.				
-alphabeta([J,Mvt,Res,NumJette,NumGarde],Prof,Seuil,Min,Max,Reserve,March,Trader,Bourse,Valeur):-
+								
+/*Alphabeta calcule la valeur alpha\beta du coup passé, et retourne ce coup en cas de feuille directe*/								
+modulo(Prof):- 0 is Prof mod 2 .
+
+/*Feuille directe, je calcule la valeur alpha si noeud pair (donc Max) et retourne le coup*/
+alphabeta([J,Mvt,Res,NumJette,NumGarde],Prof,Seuil,_,_,Reserve,March,_,Bourse,Valeur,[J,Mvt,Res,NumJette,NumGarde]):-
 	Prof == Seuil, modulo(Prof),!,
 	maximise(J,Res,NumJette,March,Bourse,Reserve,Valeur).
 	
-alphabeta([J,Mvt,Res,NumJette,NumGarde],Prof,Seuil,Min,Max,Reserve,March,Trader,Bourse,Valeur):-
+/*Feuille directe, je calcule la valeur beta si noeud pair (donc Min) et retourne le coup*/
+alphabeta([J,Mvt,Res,NumJette,NumGarde],Prof,Seuil,_,_,Reserve,March,_,_,Valeur,[J,Mvt,Res,NumJette,NumGarde]):-
 	Prof == Seuil,\+(modulo(Prof)),!,
 	minimise(J,March,Reserve,NumJette,Valeur).
 	
-alphabeta([J,Mvt,Res,NumJette,NumGarde],Prof,Seuil,Min,Max,Reserve,March,Trader,Bourse,Valeur):-
+/*Sinon, on joue le coup, prends ces successeurs et relance la recherche du meilleur coup parmi eux*/
+alphabeta([J,Mvt,Res,NumJette,NumGarde],Prof,Seuil,Min,Max,Reserve,March,Trader,Bourse,Valeur,Meilleur):-
 	jouer_coup(J,Mvt,Reserve,March,Trader,Bourse,Res,NumJette,NumGarde,NouvR,NouvM,NouvT,NouvB),
 	length(NouvM,L),
-	coups_possibles(0,L,NouvM,NouvT,J,Coups),
-	meilleur(Coups,Prof,Seuil,Min,Max,NouvR,NouvM,NouvT,NouvB,Valeur).
+	coups_possibles(0,L,NouvM,NouvT,J,[Te|Q]),
+	meilleur([Te|Q],Prof,Seuil,Min,Max,NouvR,NouvM,NouvT,NouvB,Valeur,Te,Meilleur).
 
-meilleur([],Prof,_,Min,_,_,_,_,_,Min):-
+/*retourne la meilleure nouvelle valeur selon que l'on soit sur un noeud min ou un noeud max*/
+meilleur([],Prof,_,Min,_,_,_,_,_,Min,Coup,Coup):-
 	modulo(Prof).
-
-meilleur([],Prof,_,_,Max,_,_,_,_,Max):-
+meilleur([],Prof,_,_,Max,_,_,_,_,Max,Coup,Coup):-
 	\+(modulo(Prof)).
 
-/*Coupure*/
-meilleur(_,Prof,_,Min,Max,_,_,_,_,Valeur):-
+/*Coupure alpha ou beta*/
+meilleur(_,Prof,_,Min,Max,_,_,_,_,Valeur,Coup,Meilleur):-
 	Min >= Max,!,
-	meilleur([],Prof,_,Min,Max,_,_,_,_,Valeur).
-meilleur(_,Prof,_,Min,Max,_,_,_,_,Valeur):-
+	meilleur([],Prof,_,Min,Max,_,_,_,_,Valeur,Coup,Meilleur).
+meilleur(_,Prof,_,Min,Max,_,_,_,_,Valeur,Coup,Meilleur):-
 	Max =< Min,!,
-	meilleur([],Prof,_,Max,Min,_,_,_,_,Valeur).
+	meilleur([],Prof,_,Max,Min,_,_,_,_,Valeur,Coup,Meilleur).
 	
-meilleur([[J,Mvt,Res,NumJette,NumGarde]|Succs],Prof,Seuil,Min,Max,Reserve,March,Trader,Bourse,Valeur):-
+/*cherche le meilleur coup possible à partir des coups possibles de Coup, et le retourne*/
+meilleur([T|Succs],Prof,Seuil,Min,Max,Reserve,March,Trader,Bourse,Valeur,Coup,Meilleur):-
 	NouvProf is Prof+1,
-	alphabeta([J,Mvt,Res,NumJette,NumGarde],NouvProf,Seuil,Min,Max,Reserve,March,Trader,Bourse,CourValeur),
-	compare(Prof,CourValeur,Min,NouvMin,Max,NouvMax),
-	meilleur(Succs,Prof,Seuil,NouvMin,NouvMax,Reserve,March,Trader,Bourse,Valeur),!.
+	alphabeta(T,NouvProf,Seuil,Min,Max,Reserve,March,Trader,Bourse,CourValeur,CourMeilleur),
+	compare(Prof,CourValeur,Min,NouvMin,Max,NouvMax,Coup,CourMeilleur,NouvCoup),
+	meilleur(Succs,Prof,Seuil,NouvMin,NouvMax,Reserve,March,Trader,Bourse,Valeur,T,Meilleur),!.
 
-compare(Prof,CourValeur,Min,CourValeur,Max,Max):-
+/*Vérifie s'il y a une nouvelle valeur extrême et met à jour les bornes et le meilleur coup actuel*/
+compare(Prof,CourValeur,Min,CourValeur,Max,Max,_,MeilleurC,MeilleurC):-
 	modulo(Prof), CourValeur > Min, !.
 	
-compare(Prof,CourValeur,Min,Min,Max,CourValeur):-
+compare(Prof,CourValeur,Min,Min,Max,CourValeur,_,MeilleurC,MeilleurC):-
 	\+(modulo(Prof)), CourValeur < Max, !.
 	
-compare(_,_,Min,Min,Max,Max).
+compare(_,_,Min,Min,Max,Max,C,_,C).
+
+coup_ia(J,Meilleur):-bourse(B), reserve(R), marchandise(M), length(M,L), trader(T), coups_possibles(0,L,M,T,J,[Tete|Q]),
+		meilleur(Q, 0,4,-1000,1000,R,M,T,B,Val,Tete,Meilleur).
