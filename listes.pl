@@ -1,3 +1,4 @@
+/*********OUTILS********/
 trader_depart(R):-marchandise(X),length(X,L), random(1,L,R).
 afficher_liste([]).
 afficher_liste([X]) :- write(X).
@@ -29,6 +30,11 @@ pile([_|Q],N,Res):- N1 is N-1,pile(Q,N1,Res).
 concat([],L,L).
 concat([T|L1],L2,[T|L3]):-concat(L1,L2,L3).
 
+/*Calcule le nombre d'occurence de X dans une liste*/					
+nbOccur([],_,0):-!.
+nbOccur([X|T],X,Y):- nbOccur(T,X,Z), Y is 1+Z,!.
+nbOccur([_|T],X,Z):- nbOccur(T,X,Z).
+
 ajout(X,L,[X|L]).
 
 top_pile(X,[X|_]).
@@ -44,6 +50,18 @@ element(X,[_|L],N):- element(X,L,Temp),N is Temp+1,!.
   Retourne 0 si X n'est pas dans la liste*/
 diff(X,Liste,AncVal,Diff):- element(X,Liste,Position), Diff is AncVal-Position,!.
 diff(_,_,_,0).
+
+/***********MENU************/
+
+menu:- print('BIENVENUE !! Voici plusieurs modes de jeux, veuillez faire un choix !'),nl,nl,
+	print('1.) Joueur contre Joueur'),nl,
+	print('2.) Joueur contre ordinateur'),nl,
+	print('3.) Ordinateur contre ordinateur'),nl,
+	read(Choix), analyse(Choix).
+	
+analyse(1):-jcj.
+analyse(2):-jcia.
+analyse(3):-iacia.
 
 /*Lance le mode joueur contre joueur*/
 jcj:- init_partie(L), boucle_jcj(1,1,L).
@@ -83,10 +101,13 @@ boucle_jcia(_):- afficher_bourse, calcule(SommeJ1,SommeJ2,Gagnant), affiche_resu
 boucle_iacia(Num):- Num > 2, infos, coup_ia(1,[J,Mvt,Res,NumJette,NumGarde]),
 					print('COUP DE L\'IA Joueur '),print(J), print(' : '), print('Mvt : '), print(Mvt), nl, nl,
 					jouer_coup(J,Mvt,Res,NumJette,NumGarde),
-					print('entrez quelque chose pour IA suivant'),nl,nl,read(Skip),
+					print('entrez quelque chose pour IA suivant'),nl,nl,read(_),
 					coup_ia(2,[J2,Mvt2,Res2,NumJette2,NumGarde2]), jouer_coup(J2,Mvt2,Res2,NumJette2,NumGarde2),
 					marchandise(M), length(M,L), boucle_iacia(L),!.
 boucle_iacia(_):- afficher_bourse, calcule(SommeJ1,SommeJ2,Gagnant), affiche_resultat(SommeJ1,SommeJ2,Gagnant).
+
+
+/*****PREDICATS POUR JOUEURS*****/
 
 /*Demande un coup valide au joueur J, puis l'execute*/
 coup_joueur(J):- demander_coup(X,ResStored,NumPileWasted,NPR), jouer_coup(J,X,ResStored,NumPileWasted,NPR).
@@ -197,17 +218,14 @@ gagnant(J1,J2,'Joueur 1'):- J1 > J2,!.
 gagnant(J1,J2,'Joueur 2'):- J2 > J1,!.
 gagnant(_,_,'Egalité').
 
+
+/******************INTELLIGENCE ARTIFICIELLE*****************/
 /*Détermine les coups possibles à partir de la position courante du trader*/
 coups_possibles(3,_,_,_,_,[]):-!.
 coups_possibles(Mvt,Taille,M,T,J,[[J,NewMvt,A,D,G],[J,NewMvt,B,G,D]|Suite]):- Mvt < 3, NewMvt is Mvt+1,
 								nouv_pos_trader(M,NewMvt,T,NM), abord(NM,G,D,Taille),
 								pile(M,G,PG), pile(M,D,PD), top_pile(A,PG), top_pile(B,PD),
 								coups_possibles(NewMvt,Taille,M,T,J,Suite).
-								
-/*Calcule le nombre d'occurence de X dans une liste*/					
-nbOccur([],_,0):-!.
-nbOccur([X|T],X,Y):- nbOccur(T,X,Z), Y is 1+Z,!.
-nbOccur([_|T],X,Z):- nbOccur(T,X,Z).
 
 /*calcule la valeur d'un coup en cherchant à obtenir la valeur la plus grande possible*/
 maximise(J,Res,NumJette,M,B,R,Valeur):-recup_val(Res,B,V), val_perdue(J,M,R,NumJette,VP), Valeur is V - VP.
@@ -257,8 +275,8 @@ meilleur(_,Prof,_,Min,Max,_,_,_,_,Valeur,Coup,Meilleur):-
 meilleur([T|Succs],Prof,Seuil,Min,Max,Reserve,March,Trader,Bourse,Valeur,Coup,Meilleur):-
 	NouvProf is Prof+1,
 	alphabeta(T,NouvProf,Seuil,Min,Max,Reserve,March,Trader,Bourse,CourValeur,CourMeilleur),
-	compare(Prof,CourValeur,Min,NouvMin,Max,NouvMax,Coup,CourMeilleur,NouvCoup),
-	meilleur(Succs,Prof,Seuil,NouvMin,NouvMax,Reserve,March,Trader,Bourse,Valeur,T,Meilleur),!.
+	compare(Prof,CourValeur,Min,NouvMin,Max,NouvMax,T,CourMeilleur,NouvCoup),
+	meilleur(Succs,Prof,Seuil,NouvMin,NouvMax,Reserve,March,Trader,Bourse,Valeur,NouvCoup,Meilleur),!.
 
 /*Vérifie s'il y a une nouvelle valeur extrême et met à jour les bornes et le meilleur coup actuel*/
 compare(Prof,CourValeur,Min,CourValeur,Max,Max,_,MeilleurC,MeilleurC):-
@@ -270,4 +288,4 @@ compare(Prof,CourValeur,Min,Min,Max,CourValeur,_,MeilleurC,MeilleurC):-
 compare(_,_,Min,Min,Max,Max,C,_,C).
 
 coup_ia(J,Meilleur):-bourse(B), reserve(R), marchandise(M), length(M,L), trader(T), coups_possibles(0,L,M,T,J,[Tete|Q]),
-		meilleur(Q, 0,4,-1000,1000,R,M,T,B,Val,Tete,Meilleur).
+		meilleur(Q, 0,4,-1000,1000,R,M,T,B,_,Tete,Meilleur).
